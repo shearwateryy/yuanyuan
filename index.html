@@ -120,6 +120,10 @@
         text-align: center;
       }
 
+      .mobile-break {
+        display: none;
+      }
+
       .intro-panel p {
         margin: 0 0 14px;
         font-size: 17px;
@@ -483,10 +487,13 @@
       }
 
       .card .image.photo img {
+        display: block;
         width: auto;
         max-width: 100%;
         height: auto;
         max-height: min(42vh, 360px);
+        margin-left: auto;
+        margin-right: auto;
       }
 
       .card .image.photo.landscape,
@@ -540,6 +547,8 @@
         border-radius: 14px;
         width: fit-content;
         max-width: 100%;
+        margin-left: auto;
+        margin-right: auto;
       }
 
       .carousel-track {
@@ -698,6 +707,10 @@
           line-height: 1.7;
         }
 
+        .mobile-break {
+          display: block;
+        }
+
         .info-dock {
           top: auto;
           right: 12px;
@@ -753,7 +766,7 @@
     <div class="intro-modal open" id="introModal" aria-hidden="false">
       <div class="intro-panel" role="dialog" aria-modal="true" aria-labelledby="introTitle">
         <button type="button" class="intro-close" id="introClose" aria-label="关闭说明">×</button>
-        <h2 id="introTitle">飞雪小朋友！祝你生日快乐——</h2>
+        <h2 id="introTitle">飞雪小朋友！<span class="mobile-break"></span>祝你生日快乐——</h2>
         <p>新一岁代表着新的探索、新的机遇、新的经历，这里是一份承载着朋友们回忆的地图🗺️，推荐你去这些地方看看！</p>
         <p>若你有一天走到这些地点——希望它们能同样带给你快乐和温暖——</p>
         <div class="intro-actions">
