@@ -1,0 +1,1325 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OpenStreetMap 旅行推荐地图</title>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""
+    />
+    <style>
+      :root {
+        --bg: #f8fafc;
+        --panel-border: rgba(148, 163, 184, 0.22);
+        --text: #0f172a;
+        --muted: #475569;
+        --accent: #2563eb;
+        --accent-soft: rgba(37, 99, 235, 0.14);
+        --warm: #2563eb;
+        --shadow: 0 22px 60px rgba(15, 23, 42, 0.12);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background: var(--bg);
+        color: var(--text);
+        font-family: "PingFang SC", "HarmonyOS Sans SC", "Noto Sans SC", "Hiragino Sans GB", "Source Han Sans SC", sans-serif;
+      }
+
+      body {
+        min-height: 100vh;
+        overflow: hidden;
+      }
+
+      .scene {
+        position: fixed;
+        inset: 0;
+      }
+
+      .title {
+        position: absolute;
+        top: 24px;
+        left: 50%;
+        z-index: 700;
+        transform: translateX(-50%);
+        text-align: center;
+        pointer-events: none;
+      }
+
+      .title small {
+        display: block;
+        margin-top: 6px;
+        font-size: 14px;
+        line-height: 1.4;
+        letter-spacing: 0.08em;
+        color: #6b7280;
+      }
+
+      .title h1 {
+        margin: 0;
+        font-size: clamp(38px, 3.8vw, 56px);
+        font-weight: 700;
+        line-height: 1.02;
+        letter-spacing: -0.04em;
+        color: #2f3441;
+        text-shadow: 0 8px 18px rgba(47, 52, 65, 0.08);
+        white-space: nowrap;
+      }
+
+      .shell {
+        position: absolute;
+        inset: 0;
+        overflow: visible;
+      }
+
+      .intro-modal {
+        position: fixed;
+        inset: 0;
+        z-index: 1600;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 32px;
+        background: rgba(242, 236, 227, 0.5);
+        backdrop-filter: blur(12px);
+      }
+
+      .intro-modal.open {
+        display: flex;
+      }
+
+      .intro-panel {
+        position: relative;
+        width: min(94vw, 720px);
+        padding: 34px 32px 28px;
+        border: 1px solid rgba(34, 30, 24, 0.12);
+        border-radius: 28px;
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(249, 244, 236, 0.96));
+        box-shadow:
+          0 30px 80px rgba(73, 53, 30, 0.18),
+          inset 0 1px 0 rgba(255, 255, 255, 0.65);
+        color: var(--text);
+      }
+
+      .intro-panel h2 {
+        margin: 0 0 18px;
+        font-family: "STKaiti", "KaiTi", "Kaiti SC", "Songti SC", serif;
+        font-size: clamp(28px, 4vw, 38px);
+        line-height: 1.1;
+        letter-spacing: -0.02em;
+        text-align: center;
+      }
+
+      .intro-panel p {
+        margin: 0 0 14px;
+        font-size: 17px;
+        line-height: 1.75;
+        color: rgba(36, 31, 25, 0.88);
+      }
+
+      .intro-panel p:last-of-type {
+        margin-bottom: 24px;
+      }
+
+      .intro-actions {
+        display: flex;
+        justify-content: center;
+      }
+
+      .intro-enter {
+        min-width: 168px;
+        padding: 12px 24px;
+        border: 0;
+        border-radius: 999px;
+        background: #241f19;
+        color: #fffaf3;
+        font-size: 15px;
+        letter-spacing: 0.06em;
+        cursor: pointer;
+        box-shadow: 0 14px 28px rgba(36, 31, 25, 0.18);
+      }
+
+      .intro-close {
+        position: absolute;
+        top: 16px;
+        right: 16px;
+        width: 38px;
+        height: 38px;
+        border: 0;
+        border-radius: 999px;
+        background: rgba(36, 31, 25, 0.08);
+        color: rgba(36, 31, 25, 0.76);
+        font-size: 24px;
+        line-height: 1;
+        cursor: pointer;
+      }
+
+      .credit {
+        position: absolute;
+        left: 18px;
+        bottom: 14px;
+        z-index: 700;
+        padding: 0;
+        color: rgba(71, 85, 105, 0.26);
+        font-size: 11px;
+        line-height: 1.3;
+        letter-spacing: 0.01em;
+        text-shadow: 0 1px 1px rgba(255, 255, 255, 0.22);
+        pointer-events: none;
+      }
+
+      #map {
+        width: 100%;
+        height: 100%;
+      }
+
+      .leaflet-container {
+        background: #eef4f7;
+      }
+
+      .marker-icon {
+        width: 32px;
+        height: 32px;
+        display: block;
+        filter: drop-shadow(0 10px 18px rgba(37, 99, 235, 0.18));
+      }
+
+      .marker-icon svg {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+
+      .marker-icon-wrap {
+        width: 32px;
+        height: 32px;
+        display: grid;
+        place-items: center;
+        transition: transform 160ms ease;
+      }
+
+      .marker-icon-wrap.is-active {
+        transform: translateY(-2px) scale(1.08);
+      }
+
+      .marker-icon-wrap:hover,
+      .marker-icon-wrap:focus-within {
+        transform: translateY(-2px) scale(1.03);
+      }
+
+      .info-dock {
+        position: absolute;
+        top: 124px;
+        right: 24px;
+        z-index: 650;
+        display: none;
+        width: min(30vw, 440px);
+        min-width: 340px;
+        max-height: calc(100vh - 156px);
+        pointer-events: none;
+      }
+
+      .info-dock.visible {
+        display: block;
+      }
+
+      .info-dock .card {
+        width: 100%;
+        max-width: 100%;
+        max-height: calc(100vh - 156px);
+        pointer-events: auto;
+      }
+
+      .info-empty {
+        padding: 24px 24px 22px;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        border-radius: 24px;
+        background: rgba(255, 255, 255, 0.86);
+        box-shadow: 0 18px 48px rgba(15, 23, 42, 0.1);
+        backdrop-filter: blur(14px);
+        pointer-events: auto;
+      }
+
+      .info-empty h3 {
+        margin: 0 0 8px;
+        font-size: 24px;
+        line-height: 1.15;
+      }
+
+      .info-empty p {
+        margin: 0;
+        font-size: 15px;
+        line-height: 1.7;
+        color: var(--muted);
+      }
+
+      .card img {
+        display: block;
+        width: 100%;
+        height: 210px;
+        object-fit: cover;
+        border-radius: 14px;
+        border: 1px solid rgba(34, 30, 24, 0.08);
+      }
+
+      .card .image {
+        overflow: hidden;
+        height: 118px;
+        border-radius: 14px;
+        background-size: cover;
+        background-position: center;
+        border: 1px solid rgba(34, 30, 24, 0.08);
+      }
+
+      .card .image.photo {
+        position: relative;
+        background-image: none !important;
+        cursor: zoom-in;
+      }
+
+      .card .image.photo img {
+        border: 0;
+      }
+
+      .image-zoom-hint {
+        position: absolute;
+        right: 12px;
+        bottom: 12px;
+        z-index: 2;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: rgba(24, 21, 18, 0.72);
+        color: #fffdf8;
+        font-size: 12px;
+        line-height: 1;
+        letter-spacing: 0.01em;
+        pointer-events: none;
+        box-shadow: 0 8px 18px rgba(0, 0, 0, 0.16);
+        backdrop-filter: blur(4px);
+      }
+
+      .marker-dot {
+        display: none;
+      }
+
+      .leaflet-popup-content-wrapper {
+        padding: 0;
+        border-radius: 20px;
+        background: transparent;
+        box-shadow: none;
+      }
+
+      .leaflet-popup-content {
+        margin: 0;
+      }
+
+      .leaflet-popup-tip-container {
+        display: none;
+      }
+
+      .leaflet-popup-close-button {
+        display: none;
+      }
+
+      .card {
+        --card-accent: var(--accent);
+        position: relative;
+        width: 100%;
+        max-width: 100%;
+        max-height: min(68vh, 620px);
+        padding: 24px;
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        border-radius: 24px;
+        background: rgba(255, 255, 255, 0.86);
+        color: var(--text);
+        box-shadow: 0 22px 54px rgba(15, 23, 42, 0.12);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        backdrop-filter: blur(14px);
+        scrollbar-width: thin;
+        scrollbar-color: color-mix(in srgb, var(--card-accent) 42%, transparent) rgba(148, 163, 184, 0.14);
+      }
+
+      .card::-webkit-scrollbar {
+        width: 8px;
+      }
+
+      .card::-webkit-scrollbar-track {
+        background: rgba(148, 163, 184, 0.12);
+        border-radius: 999px;
+      }
+
+      .card::-webkit-scrollbar-thumb {
+        background: color-mix(in srgb, var(--card-accent) 42%, transparent);
+        border-radius: 999px;
+      }
+
+      .card h3 {
+        margin: 0 0 4px;
+        font-size: 28px;
+        font-weight: 700;
+        max-width: 100%;
+      }
+
+      .card .card-close {
+        position: absolute;
+        top: 16px;
+        right: 16px;
+        width: 34px;
+        height: 34px;
+        border: 0;
+        border-radius: 999px;
+        background: rgba(15, 23, 42, 0.08);
+        color: rgba(15, 23, 42, 0.8);
+        font-size: 22px;
+        line-height: 1;
+        cursor: pointer;
+      }
+
+      .card .meta {
+        margin-bottom: 14px;
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--card-accent);
+        letter-spacing: 0.08em;
+      }
+
+      .card .action-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin: 0 0 18px;
+      }
+
+      .card .action-link {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 38px;
+        padding: 8px 14px;
+        border: 1px solid rgba(15, 23, 42, 0.16);
+        border-radius: 999px;
+        background: rgba(15, 23, 42, 0.06);
+        color: #0f172a;
+        font-size: 14px;
+        font-weight: 600;
+        line-height: 1;
+        text-decoration: none;
+        transition: transform 160ms ease, background 160ms ease, border-color 160ms ease;
+      }
+
+      .card .action-link:hover {
+        transform: translateY(-1px);
+        background: rgba(15, 23, 42, 0.1);
+        border-color: rgba(15, 23, 42, 0.24);
+      }
+
+      .card p {
+        margin: 0 0 18px;
+        line-height: 1.68;
+        font-size: 16px;
+        color: var(--muted);
+        white-space: pre-line;
+        max-width: 100%;
+      }
+
+      .card .link-row {
+        margin: 0 0 18px;
+      }
+
+      .card .link-row a {
+        color: var(--card-accent);
+        font-size: 16px;
+        font-weight: 600;
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+
+      .card .related-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin: 0 0 18px;
+      }
+
+      .card .related-place {
+        padding: 8px 12px;
+        border: 1px solid color-mix(in srgb, var(--card-accent) 22%, white);
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--card-accent) 9%, white);
+        color: var(--card-accent);
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .card .image {
+        height: 210px;
+        border-radius: 14px;
+        background-size: cover;
+        background-position: center;
+        border: 1px solid rgba(34, 30, 24, 0.08);
+      }
+
+      .card .image.photo {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: fit-content;
+        max-width: 100%;
+        height: auto;
+        margin-left: auto;
+        margin-right: auto;
+      }
+
+      .card .image.photo img {
+        width: auto;
+        max-width: 100%;
+        height: auto;
+        max-height: min(42vh, 360px);
+      }
+
+      .card .image.photo.landscape,
+      .carousel.landscape {
+        width: min(62vw, 500px);
+      }
+
+      .card > .image.photo.landscape {
+        width: min(54vw, 420px);
+      }
+
+      .card .image.photo.landscape img,
+      .carousel.landscape .carousel-slide img {
+        width: min(62vw, 500px);
+        height: min(26vh, 220px);
+        max-width: none;
+        max-height: none;
+        object-fit: contain;
+        background: rgba(245, 241, 234, 0.92);
+      }
+
+      .card > .image.photo.landscape img {
+        width: min(54vw, 420px);
+      }
+
+      .card .image.photo.portrait,
+      .carousel.portrait {
+        width: min(40vw, 320px);
+      }
+
+      .card .image.photo.portrait img,
+      .carousel.portrait .carousel-slide img {
+        width: min(40vw, 320px);
+        height: min(34vh, 300px);
+        max-width: none;
+        max-height: none;
+        object-fit: contain;
+        background: rgba(245, 241, 234, 0.92);
+      }
+
+      .carousel {
+        position: relative;
+        width: fit-content;
+        max-width: 100%;
+        margin-left: auto;
+        margin-right: auto;
+      }
+
+      .carousel-viewport {
+        overflow: hidden;
+        border-radius: 14px;
+        width: fit-content;
+        max-width: 100%;
+      }
+
+      .carousel-track {
+        display: flex;
+        transition: transform 220ms ease;
+        will-change: transform;
+        width: 100%;
+      }
+
+      .carousel-slide {
+        flex: 0 0 100%;
+        width: 100%;
+        display: flex;
+        justify-content: center;
+      }
+
+      .carousel-nav {
+        position: absolute;
+        top: 50%;
+        z-index: 2;
+        width: 34px;
+        height: 34px;
+        border: 0;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.92);
+        color: #0f172a;
+        font-size: 20px;
+        line-height: 1;
+        cursor: pointer;
+        box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+        transform: translateY(-50%);
+      }
+
+      .carousel-nav.prev {
+        left: 10px;
+      }
+
+      .carousel-nav.next {
+        right: 10px;
+      }
+
+      .carousel-status {
+        margin-top: 10px;
+        text-align: center;
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      .leaflet-control-zoom a {
+        border: 0;
+        color: #1f1f1f;
+      }
+
+      .leaflet-control-attribution {
+        background: rgba(255, 255, 255, 0.84);
+        color: rgba(36, 31, 25, 0.74);
+      }
+
+      .leaflet-control-attribution a {
+        color: var(--accent);
+      }
+
+      .lightbox {
+        position: fixed;
+        inset: 0;
+        z-index: 2000;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 32px;
+        background: rgba(18, 15, 12, 0.72);
+        backdrop-filter: blur(10px);
+      }
+
+      .lightbox.open {
+        display: flex;
+      }
+
+      .lightbox img {
+        display: block;
+        max-width: min(92vw, 1400px);
+        max-height: 88vh;
+        border-radius: 18px;
+        box-shadow: 0 24px 70px rgba(0, 0, 0, 0.35);
+        background: white;
+      }
+
+      .lightbox button {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        width: 42px;
+        height: 42px;
+        border: 0;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.92);
+        color: #231d17;
+        font-size: 28px;
+        line-height: 1;
+        cursor: pointer;
+      }
+
+      .lightbox-status {
+        position: absolute;
+        bottom: 22px;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 8px 14px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.9);
+        color: #231d17;
+        font-size: 14px;
+      }
+
+      @media (max-width: 900px) {
+        body {
+          overflow: auto;
+        }
+
+        .scene {
+          min-height: 100vh;
+          height: auto;
+        }
+
+        .shell {
+          min-height: 100vh;
+        }
+
+        .title {
+          top: 22px;
+          left: 50%;
+          right: auto;
+        }
+
+        .title h1 {
+          font-size: clamp(28px, 7vw, 36px);
+          white-space: normal;
+        }
+
+        .title small {
+          font-size: 11px;
+        }
+
+        .intro-modal {
+          padding: 20px;
+        }
+
+        .intro-panel {
+          width: min(100vw, 94vw);
+          padding: 28px 22px 24px;
+          border-radius: 24px;
+        }
+
+        .intro-panel p {
+          font-size: 15px;
+          line-height: 1.7;
+        }
+
+        .info-dock {
+          top: auto;
+          right: 12px;
+          left: 12px;
+          bottom: 18px;
+          width: auto;
+          min-width: 0;
+          max-height: min(44vh, 420px);
+        }
+
+        .info-dock .card,
+        .info-empty {
+          max-height: min(44vh, 420px);
+        }
+
+        .card,
+        .card h3,
+        .card p,
+        .card .image.photo,
+        .card .image.photo img,
+        .card .image.photo.landscape,
+        .card .image.photo.portrait,
+        .carousel,
+        .carousel-viewport,
+        .carousel.landscape,
+        .carousel.portrait {
+          max-width: min(78vw, 420px);
+        }
+
+        .card .image.photo.landscape img,
+        .carousel.landscape .carousel-slide img {
+          width: min(78vw, 420px);
+          height: min(24vh, 200px);
+          object-fit: contain;
+        }
+
+        .card > .image.photo.landscape,
+        .card > .image.photo.landscape img {
+          width: min(72vw, 360px);
+        }
+
+        .card .image.photo.portrait img,
+        .carousel.portrait .carousel-slide img {
+          width: min(58vw, 280px);
+          height: min(30vh, 260px);
+          object-fit: contain;
+        }
+
+      }
+    </style>
+  </head>
+  <body>
+    <div class="intro-modal open" id="introModal" aria-hidden="false">
+      <div class="intro-panel" role="dialog" aria-modal="true" aria-labelledby="introTitle">
+        <button type="button" class="intro-close" id="introClose" aria-label="关闭说明">×</button>
+        <h2 id="introTitle">飞雪小朋友！祝你生日快乐——</h2>
+        <p>新一岁代表着新的探索、新的机遇、新的经历，这里是一份承载着朋友们回忆的地图🗺️，推荐你去这些地方看看！</p>
+        <p>若你有一天走到这些地点——希望它们能同样带给你快乐和温暖——</p>
+        <div class="intro-actions">
+          <button type="button" class="intro-enter" id="introEnter">一起来看看吧！</button>
+        </div>
+      </div>
+    </div>
+
+    <main class="scene">
+      <div class="title">
+        <h1>流浪飞雪计划</h1>
+        <small>Explore the places worth going</small>
+      </div>
+      <div class="credit">（设计：YY【chat老师加持下】）</div>
+
+      <section class="shell">
+        <div id="map" aria-label="OpenStreetMap 中国地图"></div>
+        <aside class="info-dock" id="infoDock" aria-live="polite">
+          <div id="infoDockContent"></div>
+        </aside>
+      </section>
+    </main>
+
+    <div class="lightbox" id="lightbox" aria-hidden="true">
+      <button type="button" id="lightboxClose" aria-label="关闭大图">×</button>
+      <img id="lightboxImage" alt="" />
+      <div class="lightbox-status" id="lightboxStatus">1 / 1</div>
+    </div>
+
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
+    <script>
+      const locations = [
+        {
+          name: "湖南长沙万家丽",
+          position: [28.2016, 113.0890],
+          side: "right",
+          recommender: "推荐人 · 雅畅",
+          reason: "抽象圣地，飞雪满满的好奇心应该会觉得这里有趣。",
+          photo: "./WechatIMG7255.jpg"
+        },
+        {
+          name: "吴日彪蒜香猪牛排",
+          position: [20.0457, 110.3412],
+          side: "left",
+          recommender: "推荐人 · 晓童",
+          reason:
+            "选了很多好吃的，最后还是决定推荐海口钟楼老街附近这家蒜香猪牛排老字号（震撼美味.jpg! 这是本人吃过的最好吃的酥骨肉排嘿嘿嘿，还有很多口味可以选择（一口炫一个😋\n\n等到天朗气清，我们可以手拉着手从湛江的轮渡码头坐着绿皮直达海口，呼吸抚过琼州海峡的海风。不做任何别的事情，只是感受日光和人声喧闹。希望飞雪能在南国的四季里自在逍遥。",
+          photo: "./nxt.jpg"
+        },
+        {
+          name: "女巫的毡房",
+          position: [49.2162, 119.7416],
+          side: "right",
+          recommender: "推荐人 · 菲阳",
+          reason:
+            "是一对艺术家夫妇开的店，爷爷是画家，年轻时候在大兴安岭画了很久的写生，对鄂温克族的文化好像蛮了解的；奶奶是毛毡手艺人，好像会做很大型的毛毡作品。\n\n然后店里一楼有很多手工艺品，转角的地方有爷爷的藏书，都很有意思，非常有地方文化的感觉，然后二楼是一个画室，爷爷在教学美术的高中生，好像也时不时会在店里办艺术活动，总之还蛮有意思的。",
+          photos: ["./fy1.jpg", "./fy2.jpg", "./fy3.jpg", "./fy4.jpg"]
+        },
+        {
+          name: "悬泉置",
+          position: [40.1478, 94.6614],
+          side: "left",
+          recommender: "推荐人 · 晓彤",
+          reason:
+            "推荐飞雪如果来敦煌，值得去看的小众景点，悬泉置，外面是戈壁，里面因为有一眼崖壁上的吊吊泉，有一山谷的植被，也有一些动物的痕迹。\n\n汉代的邮驿机构，新建了博物馆在旁边，有很多好故事，推荐夏秋来。",
+          photos: ["./sxt1.jpg", "./sxt2.jpg"]
+        },
+        {
+          name: "香港公园",
+          position: [22.2775, 114.1610],
+          side: "left",
+          recommender: "推荐人 · 小火山",
+          reason:
+            "这是我非常喜欢的一个小公园，经常去。港铁坐到金钟C口，出来后左边上扶梯，然后穿过大商场再上两个扶梯就到了。前身是英国军营，后面改为公园的。\n\n非常好看漂亮的小公园，植物结构分明，还能看到小葵花凤头鹦鹉。（还有一家煲仔饭可以让飞雪来吃，在沙尾地铁口B出口，非常好吃！下次来调查我带你吃！）",
+          photos: ["./xhs1.jpg", "./xhs2.jpg"]
+        },
+        {
+          name: "鼓浪屿管风琴艺术中心",
+          position: [24.4530, 118.0622],
+          side: "right",
+          recommender: "推荐人 · 棣棠",
+          reason:
+            "给飞雪安利厦门的鼓浪屿管风琴艺术中心，这是目前亚洲规模最大的管风琴艺术主题馆，整个建筑围绕一百多岁的巨型古管风琴建造，每天整点都有现场演奏，乐声磅礴而温柔，身处其中如同被乐器怀抱。",
+          photo: "./dt1.jpg",
+          link: {
+            href: "https://www.xiaohongshu.com/explore/69c11b720000000023014008?app_platform=ios&app_version=8.57.1&share_from_user_hidden=true&xsec_source=app_share&type=video&xsec_token=CBebplX9Ez1RA2FZsFA9NfTOLHOIZNQF_Y4pIonrPDIUM=&author_share=1&xhsshare=WeixinSession&shareRedId=Nz46RDpLOTs7TD05Tj8yOz43QDg3NktB&apptime=1774619939&share_id=911e740a9ed54712ad95dd8c07996667&wechatWid=f6d45dc5cd7d9aa22caa15b2b51e602c&wechatOrigin=menu",
+            label: "请看链接！"
+          }
+        },
+        {
+          name: "雷州半岛",
+          position: [20.7816, 110.0032],
+          side: "right",
+          recommender: "推荐人 · 玉清",
+          reason:
+            "雷州半岛自驾，两边风景类似于宫崎骏动漫，夏天去。每次见你都是又高冷又亲切。高冷只是表情管理，遇到熟人还是热情洋溢。亲切表示和蔼可亲，相处总是开心的。时常感叹你的朋友圈照片和地点，很难想象还有没没看到过的景点。生日快乐，希望你去这里会喜欢这里的风景！",
+          photo: "./hxq1.jpg"
+        },
+        {
+          name: "澳门",
+          position: [22.1987, 113.5439],
+          side: "left",
+          recommender: "推荐人 · 希敏",
+          reason:
+            "飛雪生日快樂！歡迎你來澳門玩捏，雖然沒啥鳥，但它是最初古代天主教傳入中國的地方，所以有很多中西結合的痕跡，同時也是一個很chill也很擠的彈丸之地，適合人文探索~",
+          photo: "./hhm.jpg"
+        },
+        {
+          name: "英园",
+          position: [23.4025, 116.7618],
+          side: "right",
+          recommender: "推荐人 · 池倍",
+          reason:
+            "其实算是我家里人做的小民宿（？我外婆年轻的时候是一位潮剧演员（青衣），前几年的时候家里人把这栋老房子改建成了潮剧主题的民宿～\n\n这个地方并不是很商业，建筑上尽量保留了老厝的特点，融入了潮剧的特色，比如剧照服装头饰…期待飞雪师姐有空可以过去走走！希望飞雪师姐天天开心，能一直做自己喜欢的事、去自己想去的地方、一直在路上…飞雪师姐生日快乐🎂o(^▽^)o",
+          photos: ["./cb1.jpg", "./cb2.jpg", "./cb3.jpg", "./cb4.jpg"]
+        },
+        {
+          name: "小湘汇（晚报大道店）",
+          position: [28.2163, 113.0306],
+          side: "right",
+          recommender: "推荐人 · =0",
+          reason:
+            "一家不小众但好吃到我们根本来不及拍照的餐馆，老板是帅帅的女孩子！最好提前在大众点评排队。脑髓卷，甜酒饼，嫩香干，烧椒牛肉，土豆牛腩，鸭掌筋…都很好吃！其他的还没有尝。\n\n其实第一反应是来我家摸猫吧～想来想去还是推荐了一个公共场所。祝新一岁的飞雪幸福健康快乐，身边有可爱的人、长长的假期、多多的钱，舒展而自由！"
+        },
+        {
+          name: "天津解放北路",
+          position: [39.1358, 117.2076],
+          side: "right",
+          recommender: "推荐人 · 晗铭",
+          reason:
+            "俺跑了好多地方后发现最喜欢的城市风光还得是这里。从世纪钟出发，过解放桥，一直走到解放北园。一路上的各种建筑、旧址，街道上的松弛氛围简直太迷人了🥺\n\n祝飞雪老师生日快乐，走南闯北之余别忘常回家看看🥺\n\n配图是偷来的航拍摄影，天津城投集团大楼外立面雕塑，全天津最累的四个人（",
+          photo: "./shm.jpg"
+        },
+        {
+          name: "冯三孃翘脚牛肉（乐山）",
+          position: [29.5521, 103.7654],
+          side: "left",
+          recommender: "推荐人 · 陈青",
+          reason:
+            "肉质鲜美，非常好吃，搭配四川省菜豌豆颠儿，清爽不油腻，灵魂蘸碟，满足多种口味需求，有条件的话来一份冰粉全家福，幸福的翘脚脚～\n\n飞雪你好，首先祝你生日快乐！其次祝你天天开心！最后，祝你走遍大好河山，吃遍天下美食，自在逍遥，人间值得～",
+          photo: "./cq.jpg"
+        },
+        {
+          name: "一棵孤独的胡杨树",
+          position: [39.56702883, 93.48594425],
+          side: "right",
+          recommender: "推荐人 · 🥕",
+          reason:
+            "我有两个要推荐的地方，首先是在飞雪你还没有完全探索的青甘大环线路上，位于阿克塞哈萨克族自治县的一片雪山前的戈壁上，有一棵孤独的胡杨树，他是那么的孤独以至于需要从最近的镇上开1个小时的车才能到达。\n\n返回镇上，应该只需要开300km，就可以到达美丽的大柴旦，一定要去吃伊品轩炕锅美食坊，我反正要去肯定得吃一下。",
+          photos: ["./cyh.png", "./cyh1.png"],
+          related: ["苏州"]
+        },
+        {
+          name: "苏州",
+          position: [31.3094, 120.6117],
+          side: "right",
+          recommender: "推荐人 · 🥕",
+          reason:
+            "其次我想推荐的就是我的故乡苏州的食物，在广州到了饭点往往迷茫发愁，而回家后就会有不少我想吃的，我们家从老到少常去的就是位于姑苏区西中市的聚新春面馆，这里主要是吃紧酵馒头和面。在苏州，这些馒头并不像传统的馒头有着松软的外皮，而都是带有韧性的面皮，里面又有着浓厚的汤汁，本人全家都非常建议尝试（但我发现我居然只顾着吃没有正儿八经拍过，只好拉一张网图了。。\n\n当然最后，祝你生日快乐，可以新的一年里不用再到饭点就迷茫犯愁，也可以养好一阳台的花但是不会有很多虫，家里也不再会有任何阴暗爬行的蚊子。当然，最重要的是可以多多地到处玩，以及最最重要的是最好股票涨停，成为一个年化30个点的杰出投资家（嘻嘻",
+          photo: "./cyh2.png",
+          related: ["一棵孤独的胡杨树"]
+        },
+        {
+          name: "椰语堂",
+          position: [18.2528, 109.5119],
+          side: "left",
+          recommender: "推荐人 · YY",
+          reason:
+            "喜欢和飞雪一起吃糖水——喜欢高兴时候你上扬的嘴角！所以我将推荐一家糖水店！有机会去海南的话请去吃——椰语堂！一家清补凉连锁店，在海南晒的要死的日子里，椰语堂是那么的沁人心脾！\n\n关于新的一岁——希望你开心！健康！去更多更多的远方——",
+          photo: "./yy1.jpg"
+        },
+        {
+          name: "骑野!骑行",
+          position: [29.5736, 119.0648],
+          side: "right",
+          recommender: "推荐人 · 欣蕾",
+          reason:
+            "推荐千岛湖旁边的一个骑行&披萨店！这家可以租借自行车沿湖边公路骑行，风景非常漂亮，树荫下骑车夏天也很凉爽( ´▽` )披萨是老板现做的，从一个沾满全麦面粉的面团开始，现烤出炉十分美味🤤\n\n祝酷酷的飞雪生日快乐！新的一年也游遍大江南北吧——",
+          photos: ["./xl1.jpg", "./xl.jpg", "./xl2.jpg"]
+        }
+      ];
+
+      const map = L.map("map", {
+        zoomControl: true,
+        attributionControl: true
+      });
+      const introModal = document.getElementById("introModal");
+      const introEnter = document.getElementById("introEnter");
+      const introClose = document.getElementById("introClose");
+      const infoDock = document.getElementById("infoDock");
+      const infoDockContent = document.getElementById("infoDockContent");
+      const lightbox = document.getElementById("lightbox");
+      const lightboxImage = document.getElementById("lightboxImage");
+      const lightboxClose = document.getElementById("lightboxClose");
+      const lightboxStatus = document.getElementById("lightboxStatus");
+      const locationByName = new Map(locations.map((location) => [location.name, location]));
+      const markerByName = new Map();
+      const markerPalette = [
+        "#d4577b",
+        "#8e5cc7",
+        "#4f6fd6",
+        "#d8a24b",
+        "#d97f98",
+        "#6c59b7",
+        "#5f8fd3",
+        "#c06a8d",
+        "#e0b55f",
+        "#6f7fd9",
+        "#b35ec1",
+        "#4f93b8",
+        "#de8a5c",
+        "#9070d4",
+        "#d35f9a",
+        "#6b98de"
+      ];
+      const uniqueRecommenders = [...new Set(locations.map((location) => location.recommender))];
+      const recommenderColorMap = new Map(
+        uniqueRecommenders.map((name, index) => [name, markerPalette[index % markerPalette.length]])
+      );
+      for (const location of locations) {
+        location.markerColor = recommenderColorMap.get(location.recommender) || "#d96c8a";
+      }
+      let activeGallery = [];
+      let activeGalleryAlt = "";
+      let activeGalleryIndex = 0;
+      let activeMarker = null;
+
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+        maxZoom: 19,
+        detectRetina: true,
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>'
+      }).addTo(map);
+
+      const bounds = L.latLngBounds(
+        [18.0, 73.5],
+        [53.8, 135.1]
+      );
+
+      map.fitBounds(bounds, {
+        paddingTopLeft: [48, 150],
+        paddingBottomRight: [420, 64]
+      });
+
+      function popupContent(location) {
+        const [lat, lng] = location.position;
+        const encodedName = encodeURIComponent(location.name);
+        const amapMarkerUrl = `https://uri.amap.com/marker?position=${lng},${lat}&name=${encodedName}&src=yuanyuan-map&coordinate=gaode&callnative=1`;
+        const photos = location.photos ?? [location.photo];
+        const validPhotos = photos.filter(Boolean);
+        const slides = validPhotos
+          .map(
+            (photo, index) => `
+              <div class="carousel-slide">
+                <div class="image photo"><img src="${photo}" alt="${location.name} ${index + 1}" data-fullscreen="true" data-gallery='${JSON.stringify(validPhotos)}' data-gallery-index="${index}" data-gallery-alt="${location.name}" /><span class="image-zoom-hint">点击放大</span></div>
+              </div>
+            `
+          )
+          .join("");
+
+        const imageHtml =
+          validPhotos.length > 1
+            ? `
+                <div class="carousel" data-index="0" data-total="${validPhotos.length}">
+                  <button class="carousel-nav prev" type="button" aria-label="上一张">‹</button>
+                  <div class="carousel-viewport">
+                    <div class="carousel-track" style="transform: translateX(0%);">
+                      ${slides}
+                    </div>
+                  </div>
+                  <button class="carousel-nav next" type="button" aria-label="下一张">›</button>
+                  <div class="carousel-status">1 / ${validPhotos.length}</div>
+                </div>
+              `
+            : validPhotos.length === 1
+              ? `<div class="image photo"><img src="${validPhotos[0]}" alt="${location.name}" data-fullscreen="true" data-gallery='${JSON.stringify(validPhotos)}' data-gallery-index="0" data-gallery-alt="${location.name}" /><span class="image-zoom-hint">点击放大</span></div>`
+              : "";
+
+        return `
+          <article class="card" style="--card-accent: ${location.markerColor || "#d96c8a"};">
+            <button type="button" class="card-close" data-close-card="true" aria-label="关闭介绍">×</button>
+            <h3>${location.name}</h3>
+            <div class="meta">${location.recommender}</div>
+            <div class="action-row">
+              <a class="action-link" href="${amapMarkerUrl}" target="_blank" rel="noreferrer">导航到这里</a>
+            </div>
+            ${Array.isArray(location.related) && location.related.length
+              ? `<div class="related-row">${location.related
+                  .map(
+                    (name) =>
+                      `<button type="button" class="related-place" data-related-place="${name}">${name}</button>`
+                  )
+                  .join("")}</div>`
+              : ""}
+            <p>${location.reason}</p>
+            ${location.link ? `<p class="link-row"><a href="${location.link.href}" target="_blank" rel="noreferrer">${location.link.label}</a></p>` : ""}
+            ${imageHtml}
+          </article>
+        `;
+      }
+
+      function applyImageOrientation(imageElement) {
+        const container = imageElement.closest(".image.photo");
+
+        if (!container || imageElement.naturalWidth === 0 || imageElement.naturalHeight === 0) {
+          return;
+        }
+
+        const orientation = imageElement.naturalWidth >= imageElement.naturalHeight ? "landscape" : "portrait";
+        container.classList.remove("landscape", "portrait");
+        container.classList.add(orientation);
+
+        const slide = imageElement.closest(".carousel-slide");
+
+        if (slide) {
+          slide.dataset.orientation = orientation;
+          const carousel = imageElement.closest(".carousel");
+
+          if (carousel) {
+            updateCarouselLayout(carousel);
+          }
+        }
+      }
+
+      function updateCarouselLayout(carousel) {
+        const slides = Array.from(carousel.querySelectorAll(".carousel-slide"));
+        const current = Number(carousel.dataset.index || 0);
+        const currentSlide = slides[current];
+        const orientation = currentSlide?.dataset.orientation || slides.find((slide) => slide.dataset.orientation)?.dataset.orientation || "landscape";
+
+        carousel.classList.remove("landscape", "portrait");
+        carousel.classList.add(orientation);
+      }
+
+      function enhancePopupMedia(root) {
+        const images = root.querySelectorAll(".image.photo img");
+
+        for (const image of images) {
+          if (image.complete) {
+            applyImageOrientation(image);
+          } else {
+            image.addEventListener("load", () => applyImageOrientation(image), { once: true });
+          }
+        }
+
+        const carousels = root.querySelectorAll(".carousel");
+
+        for (const carousel of carousels) {
+          updateCarouselLayout(carousel);
+        }
+      }
+
+      function closeInfoCard() {
+        infoDock.classList.remove("visible");
+        infoDockContent.innerHTML = "";
+
+        if (activeMarker?.getElement()) {
+          activeMarker.getElement().querySelector(".marker-icon-wrap")?.classList.remove("is-active");
+        }
+
+        activeMarker = null;
+      }
+
+      document.addEventListener("click", (event) => {
+        const closeCardButton = event.target.closest("[data-close-card]");
+
+        if (closeCardButton) {
+          event.preventDefault();
+          event.stopPropagation();
+          closeInfoCard();
+          return;
+        }
+
+        const zoomableImage = event.target.closest('img[data-fullscreen="true"]');
+
+        if (zoomableImage) {
+          event.preventDefault();
+          event.stopPropagation();
+          openLightbox(
+            JSON.parse(zoomableImage.getAttribute("data-gallery") || "[]"),
+            Number(zoomableImage.getAttribute("data-gallery-index") || 0),
+            zoomableImage.getAttribute("data-gallery-alt") || zoomableImage.getAttribute("alt") || ""
+          );
+          return;
+        }
+
+        const relatedPlace = event.target.closest("[data-related-place]");
+
+        if (relatedPlace) {
+          event.preventDefault();
+          event.stopPropagation();
+          openRelatedPlace(relatedPlace.getAttribute("data-related-place") || "");
+          return;
+        }
+
+        const button = event.target.closest(".carousel-nav");
+
+        if (!button) {
+          return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+
+        const carousel = button.closest(".carousel");
+        const track = carousel.querySelector(".carousel-track");
+        const status = carousel.querySelector(".carousel-status");
+        const total = Number(carousel.dataset.total || 1);
+        const current = Number(carousel.dataset.index || 0);
+        const direction = button.classList.contains("next") ? 1 : -1;
+        const next = (current + direction + total) % total;
+
+        carousel.dataset.index = String(next);
+        track.style.transform = `translateX(-${next * 100}%)`;
+        status.textContent = `${next + 1} / ${total}`;
+        updateCarouselLayout(carousel);
+      });
+
+      function renderLightbox() {
+        if (!activeGallery.length) {
+          return;
+        }
+
+        lightboxImage.src = activeGallery[activeGalleryIndex];
+        lightboxImage.alt = `${activeGalleryAlt} ${activeGalleryIndex + 1}`;
+        lightboxStatus.textContent = `${activeGalleryIndex + 1} / ${activeGallery.length}`;
+        lightboxStatus.style.display = "block";
+      }
+
+      function openLightbox(gallery, index, alt) {
+        activeGallery = gallery.length ? gallery : [lightboxImage.src];
+        activeGalleryIndex = Math.max(0, Math.min(index, activeGallery.length - 1));
+        activeGalleryAlt = alt;
+        renderLightbox();
+        lightbox.classList.add("open");
+        lightbox.setAttribute("aria-hidden", "false");
+      }
+
+      function closeLightbox() {
+        lightbox.classList.remove("open");
+        lightbox.setAttribute("aria-hidden", "true");
+        lightboxImage.src = "";
+        lightboxImage.alt = "";
+        activeGallery = [];
+        activeGalleryIndex = 0;
+        activeGalleryAlt = "";
+      }
+
+      function stepLightbox(direction) {
+        if (activeGallery.length <= 1) {
+          return;
+        }
+
+        activeGalleryIndex = (activeGalleryIndex + direction + activeGallery.length) % activeGallery.length;
+        renderLightbox();
+      }
+
+      function closeIntroModal() {
+        introModal.classList.remove("open");
+        introModal.setAttribute("aria-hidden", "true");
+      }
+
+      function highlightMarker(marker) {
+        if (activeMarker?.getElement()) {
+          activeMarker.getElement().querySelector(".marker-icon-wrap")?.classList.remove("is-active");
+        }
+
+        activeMarker = marker;
+        marker.getElement()?.querySelector(".marker-icon-wrap")?.classList.add("is-active");
+      }
+
+      function setActiveLocation(location, options = {}) {
+        const marker = markerByName.get(location.name);
+
+        if (!marker) {
+          return;
+        }
+
+        highlightMarker(marker);
+        infoDock.classList.add("visible");
+        infoDockContent.innerHTML = popupContent(location);
+        enhancePopupMedia(infoDockContent);
+
+        if (options.pan) {
+          map.flyTo(location.position, Math.max(map.getZoom(), 5), {
+            animate: true,
+            duration: 0.7
+          });
+
+          setTimeout(() => {
+            map.panInside(location.position, {
+              paddingTopLeft: [48, 150],
+              paddingBottomRight: window.innerWidth <= 900 ? [24, 280] : [460, 96]
+            });
+          }, 140);
+        }
+      }
+
+      function openRelatedPlace(name) {
+        const targetLocation = locationByName.get(name);
+
+        if (!targetLocation) {
+          return;
+        }
+
+        closeIntroModal();
+        setActiveLocation(targetLocation, { pan: true });
+      }
+
+      introEnter.addEventListener("click", closeIntroModal);
+      introClose.addEventListener("click", closeIntroModal);
+
+      introModal.addEventListener("click", (event) => {
+        if (event.target === introModal) {
+          closeIntroModal();
+        }
+      });
+
+      lightboxClose.addEventListener("click", closeLightbox);
+
+      lightbox.addEventListener("click", (event) => {
+        if (event.target === lightbox) {
+          closeLightbox();
+        }
+      });
+
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && lightbox.classList.contains("open")) {
+          closeLightbox();
+        } else if (event.key === "Escape" && introModal.classList.contains("open")) {
+          closeIntroModal();
+        } else if (event.key === "ArrowLeft" && lightbox.classList.contains("open")) {
+          stepLightbox(-1);
+        } else if (event.key === "ArrowRight" && lightbox.classList.contains("open")) {
+          stepLightbox(1);
+        }
+      });
+
+      for (const location of locations) {
+        const markerColor = location.markerColor || "#d96c8a";
+        const icon = L.divIcon({
+          className: "",
+          html: `<div class="marker-icon-wrap">
+              <span class="marker-icon" aria-hidden="true">
+                <svg viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+                  <path fill="${markerColor}" d="M18 2.5C11.6487 2.5 6.5 7.64873 6.5 14c0 8.5435 8.6961 15.8476 10.6428 17.3723a1.35 1.35 0 0 0 1.7144 0C20.8039 29.8476 29.5 22.5435 29.5 14C29.5 7.64873 24.3513 2.5 18 2.5Z"/>
+                  <circle cx="18" cy="14" r="5.2" fill="rgba(255,255,255,0.92)"/>
+                </svg>
+              </span>
+            </div>`,
+          iconSize: [32, 32],
+          iconAnchor: [16, 28]
+        });
+
+        const marker = L.marker(location.position, { icon }).addTo(map);
+        markerByName.set(location.name, marker);
+        marker.on("mouseover", () => setActiveLocation(location));
+        marker.on("click", () => {
+          closeIntroModal();
+          setActiveLocation(location, { pan: true });
+        });
+      }
+    </script>
+  </body>
+</html>
