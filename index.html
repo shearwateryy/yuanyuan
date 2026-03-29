@@ -942,7 +942,10 @@
 
       const map = L.map("map", {
         zoomControl: true,
-        attributionControl: true
+        attributionControl: true,
+        zoomSnap: 0.25,
+        zoomDelta: 0.5,
+        minZoom: 2.5
       });
       const introModal = document.getElementById("introModal");
       const introEnter = document.getElementById("introEnter");
@@ -997,29 +1000,24 @@
         [53.8, 135.1]
       );
 
-      function getViewportPadding() {
-        if (window.innerWidth <= 900) {
-          return {
-            paddingTopLeft: [18, 96],
-            paddingBottomRight: [18, 280],
-            maxZoom: 4
-          };
+      function fitMapToViewport() {
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+
+        if (width <= 640) {
+          map.setView([35.2, 104.0], height < 760 ? 3.25 : 3.5, { animate: false });
+          return;
         }
 
-        return {
+        if (width <= 900) {
+          map.setView([35.4, 104.0], 3.75, { animate: false });
+          return;
+        }
+
+        map.fitBounds(bounds, {
           paddingTopLeft: [48, 150],
           paddingBottomRight: [420, 64],
           maxZoom: 5
-        };
-      }
-
-      function fitMapToViewport() {
-        const { paddingTopLeft, paddingBottomRight, maxZoom } = getViewportPadding();
-
-        map.fitBounds(bounds, {
-          paddingTopLeft,
-          paddingBottomRight,
-          maxZoom
         });
       }
 
@@ -1328,6 +1326,15 @@
         if (!infoDock.classList.contains("visible")) {
           fitMapToViewport();
         }
+      });
+
+      window.addEventListener("orientationchange", () => {
+        setTimeout(() => {
+          map.invalidateSize();
+          if (!infoDock.classList.contains("visible")) {
+            fitMapToViewport();
+          }
+        }, 180);
       });
 
       for (const location of locations) {
