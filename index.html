@@ -471,6 +471,48 @@
         border: 1px solid rgba(34, 30, 24, 0.08);
       }
 
+      .card .video-shell {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: min(62vw, 500px);
+        max-width: 100%;
+        margin-left: auto;
+        margin-right: auto;
+        border-radius: 14px;
+        overflow: hidden;
+        border: 1px solid rgba(34, 30, 24, 0.08);
+        background: rgba(245, 241, 234, 0.92);
+        cursor: zoom-in;
+      }
+
+      .card .video-shell video {
+        display: block;
+        width: 100%;
+        height: auto;
+        max-height: min(42vh, 360px);
+        background: #000;
+        object-fit: contain;
+      }
+
+      .video-zoom-hint {
+        position: absolute;
+        right: 12px;
+        bottom: 12px;
+        z-index: 2;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: rgba(24, 21, 18, 0.72);
+        color: #fffdf8;
+        font-size: 12px;
+        line-height: 1;
+        letter-spacing: 0.01em;
+        pointer-events: none;
+        box-shadow: 0 8px 18px rgba(0, 0, 0, 0.16);
+        backdrop-filter: blur(4px);
+      }
+
       .card .image.photo {
         display: flex;
         align-items: center;
@@ -632,6 +674,15 @@
         background: white;
       }
 
+      .lightbox video {
+        display: none;
+        max-width: min(92vw, 1400px);
+        max-height: 88vh;
+        border-radius: 18px;
+        box-shadow: 0 24px 70px rgba(0, 0, 0, 0.35);
+        background: #000;
+      }
+
       .lightbox button {
         position: absolute;
         top: 20px;
@@ -746,6 +797,17 @@
           margin-right: auto;
         }
 
+        .card .video-shell {
+          width: 100%;
+          max-width: min(78vw, 420px);
+        }
+
+        .card .video-shell video {
+          width: 100%;
+          max-height: min(24vh, 200px);
+          object-fit: contain;
+        }
+
         .card > .image.photo.landscape,
         .card > .image.photo.landscape img {
           width: min(72vw, 360px);
@@ -811,6 +873,7 @@
     <div class="lightbox" id="lightbox" aria-hidden="true">
       <button type="button" id="lightboxClose" aria-label="关闭大图">×</button>
       <img id="lightboxImage" alt="" />
+      <video id="lightboxVideo" playsinline controls></video>
       <div class="lightbox-status" id="lightboxStatus">1 / 1</div>
     </div>
 
@@ -836,11 +899,11 @@
           recommender: "推荐人 · 晓童",
           reason:
             "选了很多好吃的，最后还是决定推荐海口钟楼老街附近这家蒜香猪牛排老字号（震撼美味.jpg! 这是本人吃过的最好吃的酥骨肉排嘿嘿嘿，还有很多口味可以选择（一口炫一个😋\n\n等到天朗气清，我们可以手拉着手从湛江的轮渡码头坐着绿皮直达海口，呼吸抚过琼州海峡的海风。不做任何别的事情，只是感受日光和人声喧闹。希望飞雪能在南国的四季里自在逍遥。",
-          photo: "./nxt.jpg"
+          video: "./xt2.mp4"
         },
         {
-          name: "女巫的毡房",
-          position: [49.2162, 119.7416],
+          name: "野雪艺术空间",
+          position: [49.21046204470325, 119.74564125400062],
           side: "right",
           recommender: "推荐人 · 菲阳",
           reason:
@@ -953,11 +1016,11 @@
         },
         {
           name: "椰语堂",
-          position: [18.2528, 109.5119],
+          position: [16.8337, 112.3486],
           side: "left",
           recommender: "推荐人 · YY",
           reason:
-            "喜欢和飞雪一起吃糖水——喜欢高兴时候你上扬的嘴角！所以我将推荐一家糖水店！有机会去海南的话请去吃——椰语堂！一家清补凉连锁店，在海南晒的要死的日子里，椰语堂是那么的沁人心脾！\n\n关于新的一岁——希望你开心！健康！去更多更多的远方——",
+            "喜欢和飞雪一起吃糖水——喜欢高兴时候你上扬的嘴角！所以我将推荐一家糖水店！有机会去海南的话请去吃——椰语堂！一家清补凉连锁店，在海南晒的要死的日子里，椰语堂是那么的沁人心脾！（在西沙和海口都有店，我们能不能相聚西沙啊嘿嘿嘿、）\n\n关于新的一岁——希望你开心！健康！去更多更多的远方——",
           photo: "./yy1.jpg"
         },
         {
@@ -985,6 +1048,7 @@
       const infoDockContent = document.getElementById("infoDockContent");
       const lightbox = document.getElementById("lightbox");
       const lightboxImage = document.getElementById("lightboxImage");
+      const lightboxVideo = document.getElementById("lightboxVideo");
       const lightboxClose = document.getElementById("lightboxClose");
       const lightboxStatus = document.getElementById("lightboxStatus");
       const locationByName = new Map(locations.map((location) => [location.name, location]));
@@ -1011,13 +1075,34 @@
       const recommenderColorMap = new Map(
         uniqueRecommenders.map((name, index) => [name, markerPalette[index % markerPalette.length]])
       );
+      const galleryByLocation = new Map();
       for (const location of locations) {
         location.markerColor = recommenderColorMap.get(location.recommender) || "#d96c8a";
+        const media = [];
+
+        if (location.video) {
+          media.push({
+            type: "video",
+            src: location.video,
+            alt: location.name
+          });
+        }
+
+        for (const photo of (location.photos ?? [location.photo]).filter(Boolean)) {
+          media.push({
+            type: "image",
+            src: photo,
+            alt: location.name
+          });
+        }
+
+        galleryByLocation.set(location.name, media);
       }
       let activeGallery = [];
       let activeGalleryAlt = "";
       let activeGalleryIndex = 0;
       let activeMarker = null;
+      let lightboxTouchStartX = 0;
 
       L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
         maxZoom: 19,
@@ -1058,13 +1143,24 @@
         const [lat, lng] = location.position;
         const encodedName = encodeURIComponent(location.name);
         const amapMarkerUrl = `https://uri.amap.com/marker?position=${lng},${lat}&name=${encodedName}&src=yuanyuan-map&coordinate=gaode&callnative=1`;
+        const locationGallery = galleryByLocation.get(location.name) || [];
+        const videoIndex = location.video ? 0 : -1;
+        const videoHtml = location.video
+          ? `
+              <div class="video-shell is-live" data-video-shell="true">
+                <video src="${location.video}" preload="metadata" playsinline muted autoplay loop></video>
+                <span class="video-zoom-hint">点击放大</span>
+                <button type="button" class="video-open-hit" data-open-video="true" data-gallery-key="${location.name}" data-gallery-index="${videoIndex}" aria-label="放大查看视频" style="position:absolute;inset:0;border:0;background:transparent;cursor:zoom-in;"></button>
+              </div>
+            `
+          : "";
         const photos = location.photos ?? [location.photo];
         const validPhotos = photos.filter(Boolean);
         const slides = validPhotos
           .map(
             (photo, index) => `
               <div class="carousel-slide">
-                <div class="image photo"><img src="${photo}" alt="${location.name} ${index + 1}" data-fullscreen="true" data-gallery='${JSON.stringify(validPhotos)}' data-gallery-index="${index}" data-gallery-alt="${location.name}" /><span class="image-zoom-hint">点击放大</span></div>
+                <div class="image photo"><img src="${photo}" alt="${location.name} ${index + 1}" data-fullscreen="true" data-gallery-key="${location.name}" data-gallery-index="${(location.video ? 1 : 0) + index}" data-gallery-alt="${location.name}" /><span class="image-zoom-hint">点击放大</span></div>
               </div>
             `
           )
@@ -1085,11 +1181,11 @@
                 </div>
               `
             : validPhotos.length === 1
-              ? `<div class="image photo"><img src="${validPhotos[0]}" alt="${location.name}" data-fullscreen="true" data-gallery='${JSON.stringify(validPhotos)}' data-gallery-index="0" data-gallery-alt="${location.name}" /><span class="image-zoom-hint">点击放大</span></div>`
+              ? `<div class="image photo"><img src="${validPhotos[0]}" alt="${location.name}" data-fullscreen="true" data-gallery-key="${location.name}" data-gallery-index="${location.video ? 1 : 0}" data-gallery-alt="${location.name}" /><span class="image-zoom-hint">点击放大</span></div>`
               : "";
 
         return `
-          <article class="card" style="--card-accent: ${location.markerColor || "#d96c8a"};">
+          <article class="card" data-recommender="${location.recommender}" style="--card-accent: ${location.markerColor || "#d96c8a"};">
             <button type="button" class="card-close" data-close-card="true" aria-label="关闭介绍">×</button>
             <h3>${location.name}</h3>
             <div class="meta">${location.recommender}</div>
@@ -1106,6 +1202,7 @@
               : ""}
             <p>${location.reason}</p>
             ${location.link ? `<p class="link-row"><a href="${location.link.href}" target="_blank" rel="noreferrer">${location.link.label}</a></p>` : ""}
+            ${videoHtml}
             ${imageHtml}
           </article>
         `;
@@ -1160,6 +1257,36 @@
         for (const carousel of carousels) {
           updateCarouselLayout(carousel);
         }
+
+        const videos = root.querySelectorAll(".video-shell video");
+
+        for (const video of videos) {
+          const shell = video.closest(".video-shell");
+
+          if (!shell) {
+            continue;
+          }
+
+          video.muted = true;
+          video.loop = true;
+          video.autoplay = true;
+          video.playsInline = true;
+          video.play().catch(() => {});
+
+          video.addEventListener("play", () => {
+            shell.classList.add("is-live");
+          });
+
+          video.addEventListener("pause", () => {
+            if (!video.ended) {
+              video.play().catch(() => {});
+            }
+          });
+
+          video.addEventListener("ended", () => {
+            video.play().catch(() => {});
+          });
+        }
       }
 
       function closeInfoCard() {
@@ -1183,13 +1310,27 @@
           return;
         }
 
+        const openVideoButton = event.target.closest("[data-open-video]");
+
+        if (openVideoButton) {
+          event.preventDefault();
+          event.stopPropagation();
+          const galleryKey = openVideoButton.getAttribute("data-gallery-key") || "";
+          openLightbox(
+            galleryByLocation.get(galleryKey) || [],
+            Number(openVideoButton.getAttribute("data-gallery-index") || 0),
+            galleryKey
+          );
+          return;
+        }
+
         const zoomableImage = event.target.closest('img[data-fullscreen="true"]');
 
         if (zoomableImage) {
           event.preventDefault();
           event.stopPropagation();
           openLightbox(
-            JSON.parse(zoomableImage.getAttribute("data-gallery") || "[]"),
+            galleryByLocation.get(zoomableImage.getAttribute("data-gallery-key") || "") || [],
             Number(zoomableImage.getAttribute("data-gallery-index") || 0),
             zoomableImage.getAttribute("data-gallery-alt") || zoomableImage.getAttribute("alt") || ""
           );
@@ -1233,14 +1374,33 @@
           return;
         }
 
-        lightboxImage.src = activeGallery[activeGalleryIndex];
-        lightboxImage.alt = `${activeGalleryAlt} ${activeGalleryIndex + 1}`;
+        const current = activeGallery[activeGalleryIndex];
+
+        if (current?.type === "video") {
+          lightboxImage.style.display = "none";
+          lightboxVideo.style.display = "block";
+          lightboxImage.src = "";
+          lightboxVideo.src = current.src;
+          lightboxVideo.currentTime = 0;
+          lightboxVideo.muted = true;
+          lightboxVideo.loop = true;
+          lightboxVideo.play().catch(() => {});
+        } else {
+          lightboxVideo.pause();
+          lightboxVideo.removeAttribute("src");
+          lightboxVideo.load();
+          lightboxVideo.style.display = "none";
+          lightboxImage.style.display = "block";
+          lightboxImage.src = current?.src || "";
+          lightboxImage.alt = `${activeGalleryAlt} ${activeGalleryIndex + 1}`;
+        }
+
         lightboxStatus.textContent = `${activeGalleryIndex + 1} / ${activeGallery.length}`;
         lightboxStatus.style.display = "block";
       }
 
       function openLightbox(gallery, index, alt) {
-        activeGallery = gallery.length ? gallery : [lightboxImage.src];
+        activeGallery = gallery.length ? gallery : [];
         activeGalleryIndex = Math.max(0, Math.min(index, activeGallery.length - 1));
         activeGalleryAlt = alt;
         renderLightbox();
@@ -1253,6 +1413,11 @@
         lightbox.setAttribute("aria-hidden", "true");
         lightboxImage.src = "";
         lightboxImage.alt = "";
+        lightboxImage.style.display = "block";
+        lightboxVideo.pause();
+        lightboxVideo.removeAttribute("src");
+        lightboxVideo.load();
+        lightboxVideo.style.display = "none";
         activeGallery = [];
         activeGalleryIndex = 0;
         activeGalleryAlt = "";
@@ -1339,6 +1504,29 @@
           closeLightbox();
         }
       });
+
+      lightbox.addEventListener("touchstart", (event) => {
+        if (!lightbox.classList.contains("open")) {
+          return;
+        }
+
+        lightboxTouchStartX = event.changedTouches[0]?.clientX || 0;
+      }, { passive: true });
+
+      lightbox.addEventListener("touchend", (event) => {
+        if (!lightbox.classList.contains("open")) {
+          return;
+        }
+
+        const touchEndX = event.changedTouches[0]?.clientX || 0;
+        const deltaX = touchEndX - lightboxTouchStartX;
+
+        if (Math.abs(deltaX) < 36) {
+          return;
+        }
+
+        stepLightbox(deltaX < 0 ? 1 : -1);
+      }, { passive: true });
 
       document.addEventListener("keydown", (event) => {
         if (event.key === "Escape" && lightbox.classList.contains("open")) {
