@@ -463,6 +463,146 @@
         cursor: pointer;
       }
 
+      .comment-board {
+        margin-top: 18px;
+        padding-top: 18px;
+        border-top: 1px dashed rgba(148, 163, 184, 0.28);
+      }
+
+      .comment-board h4 {
+        margin: 0 0 12px;
+        font-size: 15px;
+        font-weight: 700;
+        color: var(--text);
+      }
+
+      .comment-stream {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin: 0 0 14px;
+        min-height: 32px;
+      }
+
+      .comment-pill {
+        display: inline-flex;
+        align-items: center;
+        max-width: 100%;
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--card-accent) 12%, white);
+        color: color-mix(in srgb, var(--card-accent) 58%, #0f172a);
+        font-size: 13px;
+        line-height: 1.35;
+        word-break: break-word;
+      }
+
+      .comment-avatar {
+        flex: 0 0 auto;
+        width: 26px;
+        height: 26px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 8px;
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--card-accent) 88%, white);
+        color: #fffdf8;
+        font-size: 12px;
+        font-weight: 700;
+        line-height: 1;
+      }
+
+      .comment-meta-wrap {
+        display: inline-flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+      }
+
+      .comment-nickname {
+        font-size: 11px;
+        font-weight: 700;
+        opacity: 0.82;
+      }
+
+      .comment-pill-text {
+        max-width: 100%;
+        word-break: break-word;
+      }
+
+      .comment-delete {
+        flex: 0 0 auto;
+        margin-left: 8px;
+        border: 0;
+        background: transparent;
+        color: inherit;
+        font-size: 14px;
+        line-height: 1;
+        cursor: pointer;
+        opacity: 0.72;
+      }
+
+      .comment-delete:hover {
+        opacity: 1;
+      }
+
+      .comment-empty {
+        color: rgba(71, 85, 105, 0.74);
+        font-size: 13px;
+      }
+
+      .comment-form {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .comment-input {
+        flex: 1;
+        min-width: 0;
+        min-height: 40px;
+        padding: 10px 14px;
+        border: 1px solid rgba(148, 163, 184, 0.24);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.92);
+        color: var(--text);
+        font-size: 14px;
+        outline: none;
+      }
+
+      .comment-nickname-input {
+        flex: 0 0 96px;
+        min-width: 0;
+        min-height: 40px;
+        padding: 10px 12px;
+        border: 1px solid rgba(148, 163, 184, 0.24);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.92);
+        color: var(--text);
+        font-size: 14px;
+        outline: none;
+      }
+
+      .comment-input:focus,
+      .comment-nickname-input:focus {
+        border-color: color-mix(in srgb, var(--card-accent) 32%, white);
+        box-shadow: 0 0 0 4px color-mix(in srgb, var(--card-accent) 10%, transparent);
+      }
+
+      .comment-submit {
+        flex: 0 0 auto;
+        min-height: 40px;
+        padding: 0 16px;
+        border: 0;
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--card-accent) 88%, #0f172a);
+        color: #fffdf8;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
       .card .image {
         height: 210px;
         border-radius: 14px;
@@ -1053,6 +1193,9 @@
       const lightboxStatus = document.getElementById("lightboxStatus");
       const locationByName = new Map(locations.map((location) => [location.name, location]));
       const markerByName = new Map();
+      const SUPABASE_URL = "https://beaiuogtuxkyhwewblvl.supabase.co";
+      const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_Ab0kAQtezlZ3p-Ax1xOdQw_wxyZboI6";
+      const NICKNAME_STORAGE_KEY = "yuanyuan-comment-nickname";
       const markerPalette = [
         "#d4577b",
         "#8e5cc7",
@@ -1102,7 +1245,10 @@
       let activeGalleryAlt = "";
       let activeGalleryIndex = 0;
       let activeMarker = null;
+      let activeLocation = null;
       let lightboxTouchStartX = 0;
+      const commentCache = new Map();
+      const commentLoading = new Set();
 
       L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
         maxZoom: 19,
@@ -1138,6 +1284,176 @@
       }
 
       fitMapToViewport();
+
+      function escapeHtml(value) {
+        return String(value)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#39;");
+      }
+
+      function readSavedNickname() {
+        try {
+          return (localStorage.getItem(NICKNAME_STORAGE_KEY) || "").trim();
+        } catch {
+          return "";
+        }
+      }
+
+      function writeSavedNickname(value) {
+        try {
+          localStorage.setItem(NICKNAME_STORAGE_KEY, value.trim().slice(0, 12));
+        } catch {}
+      }
+
+      function avatarLetter(name) {
+        const trimmed = (name || "访客").trim();
+        return escapeHtml(trimmed.charAt(0) || "访");
+      }
+
+      function getLocationComments(name) {
+        return commentCache.get(name);
+      }
+
+      async function fetchLocationComments(name) {
+        const url = new URL(`${SUPABASE_URL}/rest/v1/comments`);
+        url.searchParams.set("location_name", `eq.${name}`);
+        url.searchParams.set("select", "id,nickname,content,created_at");
+        url.searchParams.set("order", "created_at.desc");
+        url.searchParams.set("limit", "24");
+
+        const response = await fetch(url.toString(), {
+          headers: {
+            apikey: SUPABASE_PUBLISHABLE_KEY,
+            Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch comments: ${response.status}`);
+        }
+
+        const rows = await response.json();
+        const comments = Array.isArray(rows)
+          ? rows
+              .filter((row) => row?.id && row?.content)
+              .map((row) => ({
+                id: row.id,
+                nickname: row.nickname || "访客",
+                content: row.content
+              }))
+          : [];
+        commentCache.set(name, comments);
+        return comments;
+      }
+
+      async function addLocationComment(name, nickname, text) {
+        const cleaned = text.trim();
+        const cleanedNickname = nickname.trim();
+
+        if (!cleaned || !cleanedNickname) {
+          return;
+        }
+
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/comments`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            apikey: SUPABASE_PUBLISHABLE_KEY,
+            Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
+            Prefer: "return=representation"
+          },
+          body: JSON.stringify({
+            location_name: name,
+            nickname: cleanedNickname.slice(0, 12),
+            content: cleaned.slice(0, 60)
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to insert comment: ${response.status}`);
+        }
+
+        await fetchLocationComments(name);
+      }
+
+      async function deleteLocationComment(locationName, commentId) {
+        const url = new URL(`${SUPABASE_URL}/rest/v1/comments`);
+        url.searchParams.set("id", `eq.${commentId}`);
+
+        const response = await fetch(url.toString(), {
+          method: "DELETE",
+          headers: {
+            apikey: SUPABASE_PUBLISHABLE_KEY,
+            Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to delete comment: ${response.status}`);
+        }
+
+        await fetchLocationComments(locationName);
+      }
+
+      async function ensureCommentsLoaded(name) {
+        if (commentLoading.has(name)) {
+          return;
+        }
+
+        commentLoading.add(name);
+
+        try {
+          await fetchLocationComments(name);
+        } catch (error) {
+          commentCache.set(name, null);
+        } finally {
+          commentLoading.delete(name);
+        }
+
+        if (activeLocation?.name === name) {
+          infoDockContent.innerHTML = popupContent(activeLocation);
+          enhancePopupMedia(infoDockContent);
+        }
+      }
+
+      function commentSectionHtml(location) {
+        const comments = getLocationComments(location.name);
+        const streamHtml = comments === undefined
+          ? `<span class="comment-empty">弹幕加载中…</span>`
+          : comments === null
+            ? `<span class="comment-empty">弹幕暂时不可用，请稍后再试。</span>`
+            : comments.length
+          ? comments
+              .map(
+                (comment) => `
+                  <span class="comment-pill">
+                    <span class="comment-avatar">${avatarLetter(comment.nickname)}</span>
+                    <span class="comment-meta-wrap">
+                      <span class="comment-nickname">${escapeHtml(comment.nickname || "访客")}</span>
+                      <span class="comment-pill-text">${escapeHtml(comment.content)}</span>
+                    </span>
+                    <button type="button" class="comment-delete" data-delete-comment="${comment.id}" data-location-name="${escapeHtml(location.name)}" aria-label="删除这条评论">×</button>
+                  </span>
+                `
+              )
+              .join("")
+          : `<span class="comment-empty">还没有弹幕，来发第一条吧。</span>`;
+
+        return `
+          <section class="comment-board">
+            <h4>弹幕墙</h4>
+            <div class="comment-stream">${streamHtml}</div>
+            <form class="comment-form" data-comment-form="${escapeHtml(location.name)}">
+              <input class="comment-nickname-input" type="text" maxlength="12" placeholder="昵称" value="${escapeHtml(readSavedNickname())}" aria-label="输入昵称" />
+              <input class="comment-input" type="text" maxlength="60" placeholder="给这个地点留一句话…" aria-label="输入评论" />
+              <button class="comment-submit" type="submit">发送</button>
+            </form>
+          </section>
+        `;
+      }
 
       function popupContent(location) {
         const [lat, lng] = location.position;
@@ -1204,6 +1520,7 @@
             ${location.link ? `<p class="link-row"><a href="${location.link.href}" target="_blank" rel="noreferrer">${location.link.label}</a></p>` : ""}
             ${videoHtml}
             ${imageHtml}
+            ${commentSectionHtml(location)}
           </article>
         `;
       }
@@ -1292,6 +1609,7 @@
       function closeInfoCard() {
         infoDock.classList.remove("visible");
         infoDockContent.innerHTML = "";
+        activeLocation = null;
 
         if (activeMarker?.getElement()) {
           activeMarker.getElement().querySelector(".marker-icon-wrap")?.classList.remove("is-active");
@@ -1307,6 +1625,30 @@
           event.preventDefault();
           event.stopPropagation();
           closeInfoCard();
+          return;
+        }
+
+        const deleteCommentButton = event.target.closest("[data-delete-comment]");
+
+        if (deleteCommentButton) {
+          event.preventDefault();
+          event.stopPropagation();
+          const locationName = deleteCommentButton.getAttribute("data-location-name") || "";
+          const commentId = deleteCommentButton.getAttribute("data-delete-comment") || "";
+
+          if (!locationName || !commentId) {
+            return;
+          }
+
+          deleteLocationComment(locationName, commentId)
+            .then(() => {
+              const location = locationByName.get(locationName);
+
+              if (location) {
+                setActiveLocation(location);
+              }
+            })
+            .catch(() => {});
           return;
         }
 
@@ -1367,6 +1709,62 @@
         track.style.transform = `translateX(-${next * 100}%)`;
         status.textContent = `${next + 1} / ${total}`;
         updateCarouselLayout(carousel);
+      });
+
+      document.addEventListener("submit", async (event) => {
+        const form = event.target.closest("[data-comment-form]");
+
+        if (!form) {
+          return;
+        }
+
+        event.preventDefault();
+        const locationName = form.getAttribute("data-comment-form") || "";
+        const nicknameInput = form.querySelector(".comment-nickname-input");
+        const input = form.querySelector(".comment-input");
+        const nickname = nicknameInput?.value || "";
+        const text = input?.value || "";
+
+        if (!locationName || !nickname.trim() || !text.trim()) {
+          return;
+        }
+
+        const submitButton = form.querySelector(".comment-submit");
+
+        if (submitButton) {
+          submitButton.disabled = true;
+          submitButton.textContent = "发送中";
+        }
+
+        try {
+          await addLocationComment(locationName, nickname, text);
+          writeSavedNickname(nickname);
+        } catch (error) {
+          if (submitButton) {
+            submitButton.textContent = "失败了";
+          }
+          return;
+        } finally {
+          if (submitButton) {
+            submitButton.disabled = false;
+            submitButton.textContent = "发送";
+          }
+        }
+
+        if (input) {
+          input.value = "";
+        }
+
+        const location = locationByName.get(locationName);
+
+        if (location) {
+          setActiveLocation(location);
+          const nextInput = infoDockContent.querySelector(".comment-input");
+
+          if (nextInput) {
+            nextInput.focus();
+          }
+        }
       });
 
       function renderLightbox() {
@@ -1457,10 +1855,12 @@
           return;
         }
 
+        activeLocation = location;
         highlightMarker(marker);
         infoDock.classList.add("visible");
         infoDockContent.innerHTML = popupContent(location);
         enhancePopupMedia(infoDockContent);
+        ensureCommentsLoaded(location.name);
 
         if (options.pan) {
           map.flyTo(location.position, Math.max(map.getZoom(), 5), {
